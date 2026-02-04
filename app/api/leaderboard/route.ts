@@ -2,24 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/backend/db/connection";
 import { Leaderboard } from "@/backend/models/Leaderboard";
 
-// GET - Fetch top 10 leaderboard entries
+// GET - Fetch top 10 leaderboard entries for both modes
 export async function GET() {
   try {
     await connectToDatabase();
     
-    const entries = await Leaderboard.find()
-      .sort({ moves: 1, time: 1 }) // Sort by moves first, then time
+    const normalEntries = await Leaderboard.find({ gameMode: 'normal' })
+      .sort({ moves: 1, time: 1 })
+      .limit(10)
+      .select('-__v -updatedAt')
+      .lean();
+
+    const challengeEntries = await Leaderboard.find({ gameMode: 'challenge' })
+      .sort({ moves: 1, time: 1 })
       .limit(10)
       .select('-__v -updatedAt')
       .lean();
 
     return NextResponse.json({
       success: true,
-      data: entries.map(entry => ({
-        ...entry,
-        _id: entry._id.toString(),
-        date: new Date(entry.date).toLocaleDateString()
-      }))
+      data: {
+        normal: normalEntries.map(entry => ({
+          ...entry,
+          _id: entry._id.toString(),
+          date: new Date(entry.date).toLocaleDateString()
+        })),
+        challenge: challengeEntries.map(entry => ({
+          ...entry,
+          _id: entry._id.toString(),
+          date: new Date(entry.date).toLocaleDateString()
+        }))
+      }
     });
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
@@ -36,7 +49,7 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
     
     const body = await request.json();
-    const { name, moves, time } = body;
+    const { name, moves, time, gameMode } = body;
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -60,11 +73,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (gameMode && !['normal', 'challenge'].includes(gameMode)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid game mode" },
+        { status: 400 }
+      );
+    }
+
     // Create new entry
     const entry = await Leaderboard.create({
       name: name.trim(),
       moves,
-      time
+      time,
+      gameMode: gameMode || 'normal'
     });
 
     return NextResponse.json({

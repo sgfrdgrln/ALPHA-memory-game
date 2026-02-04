@@ -17,6 +17,11 @@ const leaderboardSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  gameMode: {
+    type: String,
+    enum: ['normal', 'challenge'],
+    default: 'normal'
+  },
   date: {
     type: Date,
     default: Date.now
@@ -25,7 +30,7 @@ const leaderboardSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient sorting
-leaderboardSchema.index({ moves: 1, time: 1 });
+// Index for efficient sorting and filtering by game mode
+leaderboardSchema.index({ gameMode: 1, moves: 1, time: 1 });
 
 export const Leaderboard = mongoose.models.Leaderboard || mongoose.model("Leaderboard", leaderboardSchema);
