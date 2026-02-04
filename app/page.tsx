@@ -32,8 +32,9 @@ export default function Home() {
   const [timer, setTimer] = useState(0);
   const [memorizingTime, setMemorizingTime] = useState(5);
   const [playerName, setPlayerName] = useState('');
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ normal: LeaderboardEntry[], challenge: LeaderboardEntry[] }>({ normal: [], challenge: [] });
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardMode, setLeaderboardMode] = useState<GameMode>('normal');
 
   // Initialize game and load leaderboard
   useEffect(() => {
@@ -45,11 +46,18 @@ export default function Home() {
     try {
       const response = await fetch('/api/leaderboard');
       const result = await response.json();
-      if (result.success) {
+      console.log('Leaderboard response:', result);
+      if (result.success && result.data) {
         setLeaderboard(result.data);
+      } else {
+        console.error('Failed to load leaderboard:', result);
+        // Set empty arrays if fetch fails
+        setLeaderboard({ normal: [], challenge: [] });
       }
     } catch (error) {
       console.error('Error loading leaderboard:', error);
+      // Set empty arrays on error
+      setLeaderboard({ normal: [], challenge: [] });
     }
   };
 
@@ -135,6 +143,7 @@ export default function Home() {
           name: playerName,
           moves,
           time: timer,
+          gameMode,
         }),
       });
       
@@ -331,34 +340,36 @@ export default function Home() {
         {gameState !== 'not-started' && (
           <div className="grid grid-cols-4 gap-4 w-full max-w-lg">
             {cards.map((card) => (
-              <button
+              <div
                 key={card.id}
                 onClick={() => handleCardClick(card.id)}
-                disabled={card.isMatched || gameState === 'memorizing'}
-                className={`aspect-square rounded-2xl text-5xl font-bold transition-all duration-300 transform hover:scale-105 flex items-center justify-center overflow-hidden ${
-                  card.isFlipped || card.isMatched
-                    ? 'bg-white shadow-xl'
-                    : 'bg-white/30 backdrop-blur-sm hover:bg-white/40'
+                className={`flip-card aspect-square ${
+                  card.isFlipped || card.isMatched ? 'flipped' : ''
                 } ${card.isMatched ? 'opacity-50' : ''} ${
-                  gameState === 'memorizing' ? 'cursor-default' : ''
-                }`}
+                  card.isMatched || gameState === 'memorizing' ? 'cursor-default' : 'cursor-pointer'
+                } ${!card.isMatched && gameState === 'playing' ? 'hover:scale-105' : ''} transition-transform duration-200`}
               >
-                {card.isFlipped || card.isMatched ? (
-                  card.isImage ? (
-                    <Image
-                      src={card.symbol}
-                      alt="Alpha Logo"
-                      width={80}
-                      height={80}
-                      className="object-contain"
-                    />
-                  ) : (
-                    card.symbol
-                  )
-                ) : (
-                  '?'
-                )}
-              </button>
+                <div className="flip-card-inner w-full h-full">
+                  {/* Front of card (hidden/?) */}
+                  <div className="flip-card-front bg-white/30 backdrop-blur-sm rounded-2xl hover:bg-white/40">
+                    <span className="text-white text-6xl font-bold">?</span>
+                  </div>
+                  {/* Back of card (revealed) */}
+                  <div className="flip-card-back bg-white shadow-xl rounded-2xl text-5xl font-bold">
+                    {card.isImage ? (
+                      <Image
+                        src={card.symbol}
+                        alt="Alpha Logo"
+                        width={80}
+                        height={80}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <span>{card.symbol}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -433,11 +444,36 @@ export default function Home() {
                   ✕
                 </button>
               </div>
-              {leaderboard.length === 0 ? (
+              
+              {/* Mode Tabs */}
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setLeaderboardMode('normal')}
+                  className={`flex-1 px-4 py-2 rounded-full font-semibold transition-all ${
+                    leaderboardMode === 'normal'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  Normal
+                </button>
+                <button
+                  onClick={() => setLeaderboardMode('challenge')}
+                  className={`flex-1 px-4 py-2 rounded-full font-semibold transition-all ${
+                    leaderboardMode === 'challenge'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  ⚡ Challenge
+                </button>
+              </div>
+              
+              {leaderboard[leaderboardMode].length === 0 ? (
                 <p className="text-center text-gray-500 py-8">No scores yet. Be the first to play!</p>
               ) : (
                 <div className="space-y-3">
-                  {leaderboard.map((entry, index) => (
+                  {leaderboard[leaderboardMode].map((entry, index) => (
                     <div
                       key={index}
                       className={`flex items-center justify-between p-4 rounded-xl ${
